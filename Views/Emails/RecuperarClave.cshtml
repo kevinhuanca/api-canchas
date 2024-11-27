@@ -1,0 +1,37 @@
+@model EmailView
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restablecer Contraseña</title>
+    <style>
+        * {
+            font-family: 'Segoe UI', Helvetica, Arial
+        }
+
+        .btn {
+            background-color: #2ea44f;
+            border: 1px solid rgba(27, 31, 35, .15);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            padding: 2px 10px;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Restablecer Contraseña</h2>
+    <p>Hola, @Model.Nombre</p>
+    <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
+    <p style='display: inline;'>Para continuar, haz clic en el siguiente enlace:</p>
+    <a href="@(Model.Enlace)?access_token=@Model.Token" class='btn'>Restablecer mi contraseña</a>
+    <p>Si no solicitaste este cambio, podes ignorar este correo.</p>
+    <p>Gracias,<br />El equipo de soporte.</p>
+</body>
+
+</html>

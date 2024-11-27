@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Net;
+using System.Net.Mail;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +9,7 @@ using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Mvc.Razor;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -14,11 +17,17 @@ public class UsuariosController : ControllerBase
 {
     private readonly DataContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IRazorViewEngine _razorViewEngine;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IWebHostEnvironment _environment;
 
-    public UsuariosController(DataContext context, IConfiguration configuration)
+    public UsuariosController(DataContext context, IConfiguration configuration, IRazorViewEngine razorViewEngine, IServiceProvider serviceProvider, IWebHostEnvironment environment)
     {
         _context = context;
         _configuration = configuration;
+        _razorViewEngine = razorViewEngine;
+        _serviceProvider = serviceProvider;
+        _environment = environment;
     }
 
     [AllowAnonymous]
@@ -204,7 +213,36 @@ public class UsuariosController : ControllerBase
         }
     }
 
+    [AllowAnonymous]
+    [HttpPost("email")]
+    public async Task<IActionResult> Email([FromForm] string email)
+    {
+        try
+        {
+            var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Email == email);
 
+            if (u == null)
+                return NotFound("El email no está registrado.");
+
+            string token = GenerateToken(u, 10);
+            string url = this.GenerateUrl("Token", "Usuarios", _environment);
+
+            var datos = new EmailView { Enlace = url, Nombre = u.Nombre, Token = token };
+            string htmlView = await this.RenderView("Views/Emails/RecuperarClave.cshtml", datos, _razorViewEngine, _serviceProvider);
+
+            SendMail("soporte@mailtrap.com", u.Email, "Restablecer contraseña", htmlView);
+            return Ok("Email enviado.");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    public async Task<IActionResult> Token([FromForm] string access_token)
+    {
+        return Ok("See token.");
+    }
 
     private string HashPass(string password)
     {
@@ -216,27 +254,46 @@ public class UsuariosController : ControllerBase
             numBytesRequested: 256 / 8));
     }
 
-    private string GenerateToken(Usuario usuario, int duracion)
+    private string GenerateToken(Usuario user, int duration)
     {
         var key = new SymmetricSecurityKey(
             System.Text.Encoding.ASCII.GetBytes(_configuration["TokenAuthentication:SecretKey"]));
-        var credenciales = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var claims = new List<Claim>
         {
-            new Claim("Id", usuario.Id.ToString()),
-            new Claim("FullName", usuario.Nombre + " " + usuario.Apellido)
+            new Claim("Id", user.Id.ToString()),
+            new Claim("FullName", user.Nombre + " " + user.Apellido)
         };
 
         var token = new JwtSecurityToken(
             issuer: _configuration["TokenAuthentication:Issuer"],
             audience: _configuration["TokenAuthentication:Audience"],
             claims: claims,
-            expires: DateTime.Now.AddMinutes(duracion),
-            signingCredentials: credenciales
+            expires: DateTime.Now.AddMinutes(duration),
+            signingCredentials: credentials
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    private void SendMail(string sender, string receiver, string subject, string body)
+    {
+        var client = new SmtpClient(_configuration["SMTP:Host"], _configuration.GetValue<int>("SMTP:Port"))
+        {
+            Credentials = new NetworkCredential(_configuration["SMTP:User"], _configuration["SMTP:Password"]),
+            EnableSsl = true
+        };
+
+        var message = new MailMessage
+        {
+            From = new MailAddress(sender),
+            Subject = subject,
+            Body = body,
+            IsBodyHtml = true,
+        };
+
+        message.To.Add(new MailAddress(receiver));
+        client.SendMailAsync(message);
+    }
 
 }
