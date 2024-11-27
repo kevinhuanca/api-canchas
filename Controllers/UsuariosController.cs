@@ -102,6 +102,7 @@ public class UsuariosController : ControllerBase
             if (u == null)
                 return NotFound("No se encontró el usuario.");
 
+            u.Clave = "";
             return Ok(u);
         }
         catch (Exception ex)
@@ -229,8 +230,8 @@ public class UsuariosController : ControllerBase
 
             var datos = new EmailView { Enlace = url, Nombre = u.Nombre, Token = token };
             string htmlView = await this.RenderView("Views/Emails/RecuperarClave.cshtml", datos, _razorViewEngine, _serviceProvider);
-
             SendMail("soporte@mailtrap.com", u.Email, "Restablecer contraseña", htmlView);
+
             return Ok("Email enviado.");
         }
         catch (Exception ex)
@@ -239,9 +240,52 @@ public class UsuariosController : ControllerBase
         }
     }
 
-    public async Task<IActionResult> Token([FromForm] string access_token)
+    [Authorize]
+    [HttpGet("token")]
+    public async Task<IActionResult> Token([FromQuery] string access_token)
     {
-        return Ok("See token.");
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var expiration = handler.ReadJwtToken(access_token).ValidTo;
+
+            if (expiration < DateTime.UtcNow)
+            {
+                string tokenVencidoView = await this.RenderView
+                (
+                    "Views/Emails/Informacion.cshtml", 
+                    new { Mensaje = "El link ya expiró." }, 
+                    _razorViewEngine, _serviceProvider
+                );
+                return Content(tokenVencidoView, "text/html");
+            }
+
+            string id = User.Claims.First(c => c.Type == "Id").Value;
+            var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == int.Parse(id));
+
+            if (u == null)
+                return NotFound("No se encontró el usuario.");
+
+            string newPass = GeneratePass(4);
+            u.Clave = HashPass(newPass);
+            await _context.SaveChangesAsync();
+
+            var datos = new EmailView { Nombre = u.Nombre, Clave = newPass };
+            string htmlView = await this.RenderView("Views/Emails/NuevaClave.cshtml", datos, _razorViewEngine, _serviceProvider);
+            SendMail("soporte@mailtrap.com", u.Email, "Tu nueva contraseña", htmlView);
+
+            string claveEnviadaView = await this.RenderView
+            (
+                "Views/Emails/Informacion.cshtml", 
+                new { Mensaje = "Enviamos tu nueva clave por correo." }, 
+                _razorViewEngine, _serviceProvider
+            );
+            return Content(claveEnviadaView, "text/html");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     private string HashPass(string password)
@@ -294,6 +338,16 @@ public class UsuariosController : ControllerBase
 
         message.To.Add(new MailAddress(receiver));
         client.SendMailAsync(message);
+    }
+
+    private string GeneratePass(int length)
+    {
+        Random rand = new Random(Environment.TickCount);
+        string randomChars = "abcdefghijklmnpqrstuvwxyz123456789";
+        string newPass = "";
+        for (int i = 0; i < length; i++)
+            newPass += randomChars[rand.Next(0, randomChars.Length)];
+        return newPass;
     }
 
 }
