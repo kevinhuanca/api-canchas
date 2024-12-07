@@ -13,7 +13,7 @@ public class HorariosController : ControllerBase
         _context = context;
     }
 
-    // [Authorize]
+    [Authorize]
     [HttpGet("disponible/{idCancha}/{fecha}")]
     public async Task<IActionResult> Disponible(int idCancha, DateTime fecha)
     {
@@ -66,6 +66,9 @@ public class HorariosController : ControllerBase
                     });
                 }
             }
+
+            if (horas.Count == 0)
+                return NotFound("No hay horarios disponibles.");
 
             return Ok(horas);
         }

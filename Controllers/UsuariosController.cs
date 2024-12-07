@@ -61,6 +61,9 @@ public class UsuariosController : ControllerBase
             if (registrarView.Email != registrarView.ConfirmarEmail)
                 return BadRequest("Los emails no coinciden.");
 
+            if (!ValidateMail(registrarView.Email))
+                return BadRequest("El formato del email no es válido.");
+
             if (registrarView.Clave != registrarView.ConfirmarClave)
                 return BadRequest("Las claves no coinciden.");
 
@@ -76,13 +79,12 @@ public class UsuariosController : ControllerBase
                 Nombre = registrarView.Nombre,
                 Apellido = registrarView.Apellido,
                 Email = registrarView.Email,
-                Clave = passHashed,
-                Avatar = "default.jpg"
+                Clave = passHashed
             });
             
             await _context.SaveChangesAsync();
 
-            return Ok("Usuario registrado.");
+            return Ok("Registro exitoso.");
         }
         catch (Exception ex)
         {
@@ -122,6 +124,9 @@ public class UsuariosController : ControllerBase
 
             if (u == null)
                 return NotFound("No se encontró el usuario.");
+
+            if (!ValidateMail(usuario.Email))
+                return BadRequest("El formato del email no es válido.");
 
             var emailExiste = await _context.Usuarios
                 .AnyAsync(x => x.Email == usuario.Email && x.Id != u.Id);
@@ -215,11 +220,14 @@ public class UsuariosController : ControllerBase
     }
 
     [AllowAnonymous]
-    [HttpPost("email")]
+    [HttpPost("email")] // Listo
     public async Task<IActionResult> Email([FromForm] string email)
     {
         try
         {
+            if (!ValidateMail(email))
+                return BadRequest("El formato del email no es válido.");
+
             var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Email == email);
 
             if (u == null)
@@ -241,7 +249,7 @@ public class UsuariosController : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("token")]
+    [HttpGet("token")] // Listo
     public async Task<IActionResult> Token([FromQuery] string access_token)
     {
         try
@@ -348,6 +356,16 @@ public class UsuariosController : ControllerBase
         for (int i = 0; i < length; i++)
             newPass += randomChars[rand.Next(0, randomChars.Length)];
         return newPass;
+    }
+
+    private bool ValidateMail(string mail)
+    {
+        var emailRegex = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+
+        if (System.Text.RegularExpressions.Regex.IsMatch(mail, emailRegex))
+            return true;
+
+        return false;
     }
 
 }
