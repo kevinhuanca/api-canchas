@@ -20,13 +20,11 @@ public class HorariosController : ControllerBase
         try
         {
             int numeroDiaSemana = (int)fecha.DayOfWeek;
-            numeroDiaSemana = numeroDiaSemana == 0 ? 1 : numeroDiaSemana + 1;
 
             var horarioDisponible = await _context.Canchas_Horarios
                 .Where(ch => ch.CanchaId == idCancha)
                 .Include(ch => ch.Horario)
-                .Include(ch => ch.Horario.Dia)
-                .Where(ch => ch.Horario.DiaId == numeroDiaSemana)
+                .Where(ch => ch.Horario.Dia == numeroDiaSemana)
                 .Select(ch => new
                 {
                     ch.Horario.HoraInicio,

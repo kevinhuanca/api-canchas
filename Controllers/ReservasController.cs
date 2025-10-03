@@ -42,7 +42,7 @@ public class ReservasController : ControllerBase
 
     [Authorize]
     [HttpPost("registrar")] // Listo
-    public async Task<IActionResult> Registrar([FromForm] Reserva reserva)
+    public async Task<IActionResult> Registrar([FromBody] Reserva reserva)
     {
         try
         {
@@ -55,7 +55,6 @@ public class ReservasController : ControllerBase
 
             var id = User.Claims.First(c => c.Type == "Id").Value;
             reserva.UsuarioId = int.Parse(id);
-            reserva.Precio = reserva.Precio / 100;
 
             _context.Add(reserva);
             await _context.SaveChangesAsync();
